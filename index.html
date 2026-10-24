@@ -45,7 +45,7 @@ h1{font-family:var(--display);font-weight:500;font-size:clamp(40px,11vw,62px);li
 .warm i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff8a3d,var(--candle))}
 .warm.cold svg{fill:#6d8095;filter:none}.warm.cold i{background:#6d8095}
 #msg{min-height:1.5em;margin:0;font-style:italic;color:var(--mist);text-align:center}
-.again{font:inherit;font-size:16px;background:none;border:0;color:var(--mist);text-decoration:underline;cursor:pointer;padding:4px 8px}
+.again{font:inherit;font-size:19px;margin-top:6px;min-height:44px;padding:8px 26px;background:var(--slate);border:1px solid #6d8095;border-radius:999px;cursor:pointer;box-shadow:0 0 18px rgba(160,190,220,.25)}
 button{font:inherit;color:var(--fog);cursor:pointer}
 button:focus-visible{outline:2px solid var(--fog);outline-offset:2px}
 #music{position:fixed;right:max(12px,calc(env(safe-area-inset-right,0px) + 12px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:20;font-size:15px;padding:6px 12px;background:rgba(21,28,39,.92);border:1px solid #2e3a4a;border-radius:10px}
@@ -57,6 +57,14 @@ button:focus-visible{outline:2px solid var(--fog);outline-offset:2px}
 .start p{margin:0 0 24px;font-style:italic;color:var(--mist);font-size:19px}
 .start button{font-size:20px;padding:10px 26px;background:var(--slate);border:1px solid #6d8095;border-radius:999px;box-shadow:0 0 20px rgba(180,200,225,.25)}
 .start.gone{opacity:0;pointer-events:none;transition:opacity .7s}
+/* hidden admin door: tap the cork three times */
+.admin{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(4,6,10,.82);padding:0 16px}
+.admin .card{width:min(100%,320px);background:var(--slate);border:1px solid #2e3a4a;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.admin label{font-size:20px}
+.admin input{font:inherit;font-size:18px;padding:8px 10px;border-radius:8px;border:1px solid #3a4656;background:#0b0f16;color:inherit}
+.admin .row{display:flex;gap:8px;justify-content:flex-end}
+.admin button{font-size:16px;min-height:44px;padding:6px 16px;border-radius:999px;border:1px solid #6d8095;background:rgba(21,28,39,.92)}
+.admin p{margin:0;min-height:1.2em;font-size:15px;color:#ff9a8a;font-style:italic}
 @media (prefers-reduced-motion:reduce){#final{animation:none}}
 </style>
 
@@ -76,9 +84,15 @@ button:focus-visible{outline:2px solid var(--fog);outline-offset:2px}
   <div class="warm" id="warm" aria-hidden="true"><svg viewBox="0 0 12 16"><path d="M6 1C9 5 10.5 7.5 10.5 10A4.5 4.5 0 0 1 1.5 10C1.5 7.5 3 5 6 1Z"/></svg><span><i id="warmFill"></i></span></div>
   <div class="tally" id="tally" aria-live="polite"></div>
   <p id="msg" role="status"></p>
-  <button class="again" id="again" type="button" hidden>Play again</button>
+  <button class="again" id="again" type="button" hidden>↺ Replay</button>
 </div>
 <button id="music" type="button" aria-pressed="false">♪ Music off</button>
+<div class="admin" id="admin" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="apwl">
+  <label id="apwl" for="apw">Password</label>
+  <input id="apw" type="password" autocomplete="off">
+  <p id="aerr" role="status"></p>
+  <div class="row"><button id="acancel" type="button">Cancel</button><button id="aok" type="button">Open</button></div>
+</div></div>
 
 <script>
 (()=>{
@@ -193,6 +207,20 @@ const ptr={down:false,x:0,y:0,path:[]};
 const trail=[]; // recent stroke points for the glowing line
 function local(e){const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
 function cold(){say("Your finger is too cold. Rest it a moment to warm up.");sCold();}
+// admin door: three quick taps on the cork ask for the password; the right one skips straight to the finale
+const ADMIN=217580182;let corkTaps=[];
+function adminHash(t){let h=2166136261;t="jar-admin|"+t;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+cv.addEventListener("pointerdown",e=>{if(!B)return;const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top,{x,y,w}=B,nx=x+w*.24,nw=w*.52;
+  if(px<nx+nw*.04||px>nx+nw*.96||py<y-H*.12||py>y-H*.04)return;
+  const now=performance.now();corkTaps=corkTaps.filter(t=>now-t<1500);corkTaps.push(now);
+  if(corkTaps.length>=3){corkTaps=[];$("aerr").textContent="";$("apw").value="";$("admin").hidden=false;$("apw").focus();}});
+function adminTry(){initAudio();if(adminHash($("apw").value)!==ADMIN){$("aerr").textContent="That's not it.";$("apw").select();return;}
+  $("admin").hidden=true;adminFinish();}
+function adminFinish(){
+  $("start").classList.add("gone");$("start").hidden=true;$("final").hidden=true;$("again").hidden=true;$("msg").textContent="";won=false;
+  startLevel(2);souls.forEach(s=>{if(s.kind!=="wicked")s.gone=true;});caught=need;tally();playing=true;levelDone();}
+$("aok").onclick=adminTry;$("acancel").onclick=()=>{$("admin").hidden=true;};
+$("apw").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();adminTry();}else if(e.key==="Escape")$("admin").hidden=true;});
 cv.addEventListener("pointerdown",e=>{if(!playing||busy)return;initAudio();cv.setPointerCapture(e.pointerId);const [x,y]=local(e);
   if(warmth<.04){cold();return;}ptr.down=true;ptr.x=x;ptr.y=y;ptr.path=[[x,y]];wipe(x,y,x,y);});
 cv.addEventListener("pointermove",e=>{if(!ptr.down)return;const [x,y]=local(e),d=Math.hypot(x-ptr.x,y-ptr.y);if(d<3)return;
@@ -270,6 +298,7 @@ function draw(t){
 
   // the fog over everything
   g.drawImage(fogC,0,0);
+  if(dance)drawDance(t);
   // trapped rings flash
   flashes.forEach(f=>{const p=(t-f.t0)/.8;if(p>1)return;g.globalAlpha=1-p;g.strokeStyle=f.bad?"#ff5a4a":"#fff3c4";g.lineWidth=3;g.shadowColor=g.strokeStyle;g.shadowBlur=14;g.beginPath();f.poly.forEach(([px,py],i)=>i?g.lineTo(px,py):g.moveTo(px,py));g.closePath();g.stroke();g.shadowBlur=0;g.globalAlpha=1;});
   for(let i=flashes.length-1;i>=0;i--)if(t-flashes[i].t0>.8)flashes.splice(i,1);
@@ -298,16 +327,30 @@ function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;T=now/1000;
 function breaths(){const b=$("breaths");b.innerHTML="";b.setAttribute("aria-label",`Level ${lv+1} of 3`);
   for(let i=0;i<3;i++)b.insertAdjacentHTML("beforeend",`<svg viewBox="0 0 24 16" class="${i<lv||(won&&i===lv)?"done":i===lv?"now":""}"><path d="M2 10 Q6 3 11 8 T20 7 Q23 7 22 10"/><path d="M5 14 Q10 10 15 13 T22 13"/></svg>`);}
 function tally(){const tl=$("tally");tl.innerHTML="";for(let i=0;i<need;i++)tl.insertAdjacentHTML("beforeend",`<span class="${i<caught?"got":""}"></span>`);tl.setAttribute("aria-label",`${caught} of ${need} souls caught`);}
-function startLevel(n){lv=n;busy=false;warmth=1;spawn();surge();breaths();save();if(n===1)setTimeout(()=>say("Beware the red-eyed one. Never trap it."),900);if(n===2)setTimeout(()=>say("One of them is not what it seems."),900);}
+function startLevel(n){lv=n;busy=false;warmth=1;spawn();surge();breaths();save();if(n===1)setTimeout(()=>{if(!won)say("Beware the red-eyed one. Never trap it.");},900);if(n===2)setTimeout(()=>{if(!won)say("One of them is not what it seems.");},900);}
 function levelDone(){busy=true;sLevel();
   if(lv<2){say(["The first breath is cleared.","The second breath is cleared."][lv]);setTimeout(()=>startLevel(lv+1),2600);}
   else{won=true;save();setTimeout(()=>showFinal(true),900);}}
-function showFinal(celebrate){won=true;playing=false;busy=true;breaths();souls.forEach(s=>{s.gone=true;});
+// the finale dance: the freed souls rise from the bottom of the jar and whirl around the coordinates, then drift up out of the neck
+let dance=null;
+function startDance(){const cols=souls.filter(s=>s.kind!=="wicked").map(s=>s.c);while(cols.length<8)cols.push(GOOD[cols.length%GOOD.length]);
+  dance={t0:T,d:cols.slice(0,8).map((c,i)=>({c,r:15,p:Math.random()*6,kind:"good",x:0,y:0}))};}
+function drawDance(t){const e=t-dance.t0;if(e>8.6){dance=null;return;}
+  const {x,y,w,h}=B,cx=x+w/2,cy=H*.52,RX=w*.44,RY=h*.4,n=dance.d.length,ease=u=>u*u*(3-2*u);
+  dance.d.forEach((s,i)=>{const base=i/n*Math.PI*2,ang=base+e*(1.4+Math.min(1,e/5))+Math.sin(e*1.3+i)*.08;
+    let k=1,ox=cx,oy=cy,al=1;
+    if(e<1.4){k=ease(e/1.4);oy=cy+(y+h-40-cy)*(1-k);al=Math.min(1,e/.5);}
+    else if(e>6.6){const u=ease(Math.min(1,(e-6.6)/2));k=1-u;oy=cy+(y-H*.06-cy)*u;al=1-u;}
+    const pulse=1+.04*Math.sin(e*2.4+i*1.7);
+    const sq=v=>Math.sign(v)*Math.pow(Math.abs(v),.55); // rounded-square path keeps the dancers clear of the coordinates
+    s.x=ox+sq(Math.cos(ang))*RX*k*pulse;s.y=oy+sq(Math.sin(ang))*RY*k*pulse+Math.sin(e*5+i)*6;
+    g.save();g.globalAlpha=al;drawSoul(g,s,t+i);g.restore();});}
+function showFinal(celebrate){won=true;playing=false;busy=true;breaths();souls.forEach(s=>{s.gone=true;});if(celebrate&&!reduce)startDance();
   if(celebrate&&!reduce){let k=0;const iv=setInterval(()=>{fg.save();fg.globalCompositeOperation="destination-out";fg.fillStyle="rgba(0,0,0,.12)";fg.fillRect(0,0,W,H);fg.restore();if(++k>30)clearInterval(iv);},60);}else clearAll();
   $("fn").textContent=FINAL[0];$("fw").textContent=FINAL[1];$("final").hidden=false;$("again").hidden=false;$("msg").textContent="The glass is clear. Follow the light.";
   if(celebrate)victory();}
 function save(){}
-$("again").onclick=()=>{won=false;playing=true;$("final").hidden=true;$("again").hidden=true;$("msg").textContent="";startLevel(0);};
+$("again").onclick=()=>{dance=null;won=false;playing=true;$("final").hidden=true;$("again").hidden=true;$("msg").textContent="";startLevel(0);};
 
 /* ---------- sound ---------- */
 let ctx,master,echoIn,noiseBuf,music=null,musicOn=false;
@@ -353,11 +396,18 @@ function victory(){
     ch.forEach((m,k)=>[-6,6].forEach(dt=>{const o=ctx.createOscillator();o.type="sawtooth";o.frequency.value=hz(m);o.detune.value=dt+k;o.connect(f1);o.start(t);o.stop(t+d+.05);}));});
   breathNoise(T0+8*B,1.6,900,.08,out);
 }
-function startMusic(){initAudio();if(!ctx||music)return;const t=ctx.currentTime,gm=ctx.createGain();gm.gain.setValueAtTime(0,t);gm.gain.linearRampToValueAtTime(.06,t+2);gm.connect(master);gm.connect(echoIn);
-  const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=420;lp.connect(gm);
-  const os=[38,45,50,53].map((m,i)=>{const o=ctx.createOscillator();o.type="sawtooth";o.frequency.value=hz(m);o.detune.value=i%2?-6:6;o.connect(lp);o.start();return o;});
-  const notes=[69,72,74,76,74,72,69,67];let k=0;const iv=setInterval(()=>{if(ctx&&Math.random()<.6)flute(notes[k++%notes.length],ctx.currentTime,1.4,.04,gm);},1900);
-  music={gm,os,iv};}
+// a clean flute voice for the background air (no breath noise)
+function softFlute(m,t,dur,v,dest){const o=ctx.createOscillator(),a=ctx.createGain(),vib=ctx.createOscillator(),vg=ctx.createGain();o.type="sine";o.frequency.value=hz(m);vib.frequency.value=4.8;vg.gain.value=hz(m)*.006;vib.connect(vg);vg.connect(o.frequency);
+  a.gain.setValueAtTime(0,t);a.gain.linearRampToValueAtTime(v,t+.12);a.gain.setValueAtTime(v,t+dur*.6);a.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(a);a.connect(dest);[o,vib].forEach(x=>{x.start(t);x.stop(t+dur+.05);});tone(hz(m)*2,t,dur*.7,"sine",v*.1,dest);}
+// background music: a soft misty pad (pure sine tones, no buzz) with a slow breathing swell and a quiet flute air drifting over it
+function startMusic(){initAudio();if(!ctx||music)return;const t=ctx.currentTime,gm=ctx.createGain();gm.gain.setValueAtTime(0,t);gm.gain.linearRampToValueAtTime(.07,t+2.5);gm.connect(master);gm.connect(echoIn);
+  const pad=ctx.createGain();pad.gain.value=.55;pad.connect(gm);
+  const sw=ctx.createOscillator(),swg=ctx.createGain();sw.frequency.value=.08;swg.gain.value=.2;sw.connect(swg);swg.connect(pad.gain);sw.start();
+  const os=[50,57,62,65].map((m,i)=>{const g1=ctx.createGain();g1.gain.value=[.5,.32,.26,.2][i];g1.connect(pad);
+    return [1,1.0035].map(r=>{const o=ctx.createOscillator();o.type="sine";o.frequency.value=hz(m)*r;o.connect(g1);o.start();return o;});}).flat();
+  const air=[[69,2],[72,1],[74,1],[76,3],[74,1],[72,2],[69,3],[67,2],[69,4]];let k=0;
+  const iv=setInterval(()=>{if(!ctx)return;const [m,d]=air[k++%air.length];softFlute(m,ctx.currentTime,d*.55+.4,.05,gm);},1400);
+  music={gm,os:[...os,sw],iv};}
 function stopMusic(){if(!music)return;const m=music;music=null;clearInterval(m.iv);const t=ctx.currentTime;m.gm.gain.cancelScheduledValues(t);m.gm.gain.setValueAtTime(m.gm.gain.value,t);m.gm.gain.linearRampToValueAtTime(0,t+.8);m.os.forEach(o=>o.stop(t+.9));}
 $("music").onclick=e=>{musicOn=!musicOn;e.currentTarget.setAttribute("aria-pressed",musicOn);e.currentTarget.textContent=musicOn?"♪ Music on":"♪ Music off";musicOn?startMusic():stopMusic();};
 
