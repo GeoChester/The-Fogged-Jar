@@ -57,14 +57,6 @@ button:focus-visible{outline:2px solid var(--fog);outline-offset:2px}
 .start p{margin:0 0 24px;font-style:italic;color:var(--mist);font-size:19px}
 .start button{font-size:20px;padding:10px 26px;background:var(--slate);border:1px solid #6d8095;border-radius:999px;box-shadow:0 0 20px rgba(180,200,225,.25)}
 .start.gone{opacity:0;pointer-events:none;transition:opacity .7s}
-/* hidden admin door: tap the cork three times */
-.admin{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(4,6,10,.82);padding:0 16px}
-.admin .card{width:min(100%,320px);background:var(--slate);border:1px solid #2e3a4a;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
-.admin label{font-size:20px}
-.admin input{font:inherit;font-size:18px;padding:8px 10px;border-radius:8px;border:1px solid #3a4656;background:#0b0f16;color:inherit}
-.admin .row{display:flex;gap:8px;justify-content:flex-end}
-.admin button{font-size:16px;min-height:44px;padding:6px 16px;border-radius:999px;border:1px solid #6d8095;background:rgba(21,28,39,.92)}
-.admin p{margin:0;min-height:1.2em;font-size:15px;color:#ff9a8a;font-style:italic}
 @media (prefers-reduced-motion:reduce){#final{animation:none}}
 </style>
 
@@ -87,12 +79,6 @@ button:focus-visible{outline:2px solid var(--fog);outline-offset:2px}
   <button class="again" id="again" type="button" hidden>↺ Replay</button>
 </div>
 <button id="music" type="button" aria-pressed="false">♪ Music off</button>
-<div class="admin" id="admin" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="apwl">
-  <label id="apwl" for="apw">Password</label>
-  <input id="apw" type="password" autocomplete="off">
-  <p id="aerr" role="status"></p>
-  <div class="row"><button id="acancel" type="button">Cancel</button><button id="aok" type="button">Open</button></div>
-</div></div>
 
 <script>
 (()=>{
@@ -207,20 +193,6 @@ const ptr={down:false,x:0,y:0,path:[]};
 const trail=[]; // recent stroke points for the glowing line
 function local(e){const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
 function cold(){say("Your finger is too cold. Rest it a moment to warm up.");sCold();}
-// admin door: three quick taps on the cork ask for the password; the right one skips straight to the finale
-const ADMIN=217580182;let corkTaps=[];
-function adminHash(t){let h=2166136261;t="jar-admin|"+t;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
-cv.addEventListener("pointerdown",e=>{if(!B)return;const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top,{x,y,w}=B,nx=x+w*.24,nw=w*.52;
-  if(px<nx+nw*.04||px>nx+nw*.96||py<y-H*.12||py>y-H*.04)return;
-  const now=performance.now();corkTaps=corkTaps.filter(t=>now-t<1500);corkTaps.push(now);
-  if(corkTaps.length>=3){corkTaps=[];$("aerr").textContent="";$("apw").value="";$("admin").hidden=false;$("apw").focus();}});
-function adminTry(){initAudio();if(adminHash($("apw").value)!==ADMIN){$("aerr").textContent="That's not it.";$("apw").select();return;}
-  $("admin").hidden=true;adminFinish();}
-function adminFinish(){
-  $("start").classList.add("gone");$("start").hidden=true;$("final").hidden=true;$("again").hidden=true;$("msg").textContent="";won=false;
-  startLevel(2);souls.forEach(s=>{if(s.kind!=="wicked")s.gone=true;});caught=need;tally();playing=true;levelDone();}
-$("aok").onclick=adminTry;$("acancel").onclick=()=>{$("admin").hidden=true;};
-$("apw").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();adminTry();}else if(e.key==="Escape")$("admin").hidden=true;});
 cv.addEventListener("pointerdown",e=>{if(!playing||busy)return;initAudio();cv.setPointerCapture(e.pointerId);const [x,y]=local(e);
   if(warmth<.04){cold();return;}ptr.down=true;ptr.x=x;ptr.y=y;ptr.path=[[x,y]];wipe(x,y,x,y);});
 cv.addEventListener("pointermove",e=>{if(!ptr.down)return;const [x,y]=local(e),d=Math.hypot(x-ptr.x,y-ptr.y);if(d<3)return;
